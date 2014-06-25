@@ -22,14 +22,10 @@ var TimeFunc = time.Now
 type Keyfunc func(*Token) ([]byte, error)
 
 type Header interface {
-	// json.Marshaler
-	// json.Unmarshaler
 	Alg() (string, bool)
 }
 
 type Claims interface {
-	// json.Marshaler
-	// json.Unmarshaler
 	Exp() (float64, bool)
 	Nbf() (float64, bool)
 }
@@ -52,14 +48,6 @@ func (self *HeaderMap) Alg() (alg string, ok bool) {
 	return
 }
 
-// func (self *HeaderMap) UnmarshalJSON(b []byte) error {
-// 	return json.Unmarshal(b, *self)
-// }
-
-// func (self *HeaderMap) MarshalJSON() ([]byte, error) {
-// 	return json.Marshal(*self)
-// }
-
 type ClaimsMap map[string]interface{}
 
 func (self *ClaimsMap) Exp() (exp float64, ok bool) {
@@ -71,14 +59,6 @@ func (self *ClaimsMap) Nbf() (nbf float64, ok bool) {
 	nbf, ok = (*self)["nbf"].(float64)
 	return
 }
-
-// func (self *ClaimsMap) UnmarshalJSON(b []byte) error {
-// 	return json.Unmarshal(b, *self)
-// }
-
-// func (self *ClaimsMap) MarshalJSON() ([]byte, error) {
-// 	return json.Marshal(*self)
-// }
 
 func NewHeaderMap(method SigningMethod) *HeaderMap {
 	return &HeaderMap{
