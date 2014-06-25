@@ -23,6 +23,7 @@ type Keyfunc func(*Token) ([]byte, error)
 
 type Header interface {
 	Alg() (string, bool)
+	Kid() (kid string, ok bool)
 }
 
 type Claims interface {
@@ -45,6 +46,11 @@ type HeaderMap map[string]interface{}
 
 func (self *HeaderMap) Alg() (alg string, ok bool) {
 	alg, ok = (*self)["alg"].(string)
+	return
+}
+
+func (self *HeaderMap) Kid() (kid string, ok bool) {
+	kid, ok = (*self)["kid"].(string)
 	return
 }
 
