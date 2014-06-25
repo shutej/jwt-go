@@ -22,10 +22,14 @@ var TimeFunc = time.Now
 type Keyfunc func(*Token) ([]byte, error)
 
 type Header interface {
+	// json.Marshaler
+	// json.Unmarshaler
 	Alg() (string, bool)
 }
 
 type Claims interface {
+	// json.Marshaler
+	// json.Unmarshaler
 	Exp() (float64, bool)
 	Nbf() (float64, bool)
 }
@@ -41,33 +45,69 @@ type Token struct {
 	Valid     bool          // Is the token valid?  Populated when you Parse/Verify a token
 }
 
-type headerMap map[string]interface{}
+type HeaderMap map[string]interface{}
 
-func (self headerMap) Alg() (alg string, ok bool) {
-	alg, ok = self["alg"].(string)
+func (self *HeaderMap) Alg() (alg string, ok bool) {
+	alg, ok = (*self)["alg"].(string)
 	return
 }
 
-type claimsMap map[string]interface{}
+// func (self *HeaderMap) UnmarshalJSON(b []byte) error {
+// 	return json.Unmarshal(b, *self)
+// }
 
-func (self claimsMap) Exp() (exp float64, ok bool) {
-	exp, ok = self["exp"].(float64)
+// func (self *HeaderMap) MarshalJSON() ([]byte, error) {
+// 	return json.Marshal(*self)
+// }
+
+type ClaimsMap map[string]interface{}
+
+func (self *ClaimsMap) Exp() (exp float64, ok bool) {
+	exp, ok = (*self)["exp"].(float64)
 	return
 }
 
-func (self claimsMap) Nbf() (nbf float64, ok bool) {
-	nbf, ok = self["nbf"].(float64)
+func (self *ClaimsMap) Nbf() (nbf float64, ok bool) {
+	nbf, ok = (*self)["nbf"].(float64)
 	return
+}
+
+// func (self *ClaimsMap) UnmarshalJSON(b []byte) error {
+// 	return json.Unmarshal(b, *self)
+// }
+
+// func (self *ClaimsMap) MarshalJSON() ([]byte, error) {
+// 	return json.Marshal(*self)
+// }
+
+func NewHeaderMap(method SigningMethod) *HeaderMap {
+	return &HeaderMap{
+		"typ": "JWT",
+		"alg": method.Alg(),
+	}
+}
+
+func New() *Token {
+	return &Token{
+		Header: &HeaderMap{},
+		Claims: &ClaimsMap{},
+	}
 }
 
 // Create a new Token.  Takes a signing method.
-func New(method SigningMethod) *Token {
+func NewWithSigningMethod(method SigningMethod) *Token {
 	return &Token{
-		Header: headerMap{
-			"typ": "JWT",
-			"alg": method.Alg(),
-		},
-		Claims: make(claimsMap),
+		Header: NewHeaderMap(method),
+		Claims: &ClaimsMap{},
+		Method: method,
+	}
+}
+
+// Create a new Token.  Takes a signing method.
+func NewWithClaims(method SigningMethod, claims Claims) *Token {
+	return &Token{
+		Header: NewHeaderMap(method),
+		Claims: claims,
 		Method: method,
 	}
 }
@@ -112,20 +152,20 @@ func (t *Token) SigningString() (string, error) {
 // Parse, validate, and return a token.  keyFunc will receive the parsed token
 // and should return the key for validating.  If everything is kosher, err will
 // be nil.
-func (token *Token) Parse(tokenString string, keyFunc Keyfunc) error {
+func (t *Token) Parse(tokenString string, keyFunc Keyfunc) error {
 	parts := strings.Split(tokenString, ".")
 	if len(parts) != 3 {
 		return &ValidationError{err: "Token contains an invalid number of segments", Errors: ValidationErrorMalformed}
 	}
 
 	var err error
-	token.Raw = tokenString
+	t.Raw = tokenString
 	// parse Header
 	var headerBytes []byte
 	if headerBytes, err = DecodeSegment(parts[0]); err != nil {
 		return &ValidationError{err: err.Error(), Errors: ValidationErrorMalformed}
 	}
-	if err = json.Unmarshal(headerBytes, &token.Header); err != nil {
+	if err = json.Unmarshal(headerBytes, t.Header); err != nil {
 		return &ValidationError{err: err.Error(), Errors: ValidationErrorMalformed}
 	}
 
@@ -134,13 +174,13 @@ func (token *Token) Parse(tokenString string, keyFunc Keyfunc) error {
 	if claimBytes, err = DecodeSegment(parts[1]); err != nil {
 		return &ValidationError{err: err.Error(), Errors: ValidationErrorMalformed}
 	}
-	if err = json.Unmarshal(claimBytes, &token.Claims); err != nil {
+	if err = json.Unmarshal(claimBytes, t.Claims); err != nil {
 		return &ValidationError{err: err.Error(), Errors: ValidationErrorMalformed}
 	}
 
 	// Lookup signature method
-	if method, ok := token.Header.Alg(); ok {
-		if token.Method = GetSigningMethod(method); token.Method == nil {
+	if method, ok := t.Header.Alg(); ok {
+		if t.Method = GetSigningMethod(method); t.Method == nil {
 			return &ValidationError{err: "Signing method (alg) is unavailable.", Errors: ValidationErrorUnverifiable}
 		}
 	} else {
@@ -149,20 +189,20 @@ func (token *Token) Parse(tokenString string, keyFunc Keyfunc) error {
 
 	// Lookup key
 	var key []byte
-	if key, err = keyFunc(token); err != nil {
+	if key, err = keyFunc(t); err != nil {
 		return &ValidationError{err: err.Error(), Errors: ValidationErrorUnverifiable}
 	}
 
 	// Check expiration times
 	vErr := &ValidationError{}
 	now := TimeFunc().Unix()
-	if exp, ok := token.Claims.Exp(); ok {
+	if exp, ok := t.Claims.Exp(); ok {
 		if now > int64(exp) {
 			vErr.err = "Token is expired"
 			vErr.Errors |= ValidationErrorExpired
 		}
 	}
-	if nbf, ok := token.Claims.Nbf(); ok {
+	if nbf, ok := t.Claims.Nbf(); ok {
 		if now < int64(nbf) {
 			vErr.err = "Token is not valid yet"
 			vErr.Errors |= ValidationErrorNotValidYet
@@ -170,13 +210,13 @@ func (token *Token) Parse(tokenString string, keyFunc Keyfunc) error {
 	}
 
 	// Perform validation
-	if err = token.Method.Verify(strings.Join(parts[0:2], "."), parts[2], key); err != nil {
+	if err = t.Method.Verify(strings.Join(parts[0:2], "."), parts[2], key); err != nil {
 		vErr.err = err.Error()
 		vErr.Errors |= ValidationErrorSignatureInvalid
 	}
 
 	if vErr.valid() {
-		token.Valid = true
+		t.Valid = true
 		return nil
 	}
 
@@ -220,13 +260,13 @@ const jwtPrefix = "JWT "
 // This method will call ParseMultipartForm if there's no token in the header.
 // Currently, it looks in the Authorization header as well as
 // looking for an 'access_token' request parameter in req.Form.
-func (token *Token) ParseFromRequest(req *http.Request, keyFunc Keyfunc) (err error) {
+func (t *Token) ParseFromRequest(req *http.Request, keyFunc Keyfunc) (err error) {
 
 	// Look for an Authorization header
 	if ah := req.Header.Get("Authorization"); ah != "" {
 		// Should be a JWT token
 		if len(ah) > len(jwtPrefix) && strings.ToUpper(ah[0:len(jwtPrefix)]) == jwtPrefix {
-			return token.Parse(ah[len(jwtPrefix):], keyFunc)
+			return t.Parse(ah[len(jwtPrefix):], keyFunc)
 		}
 	}
 

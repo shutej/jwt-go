@@ -12,55 +12,55 @@ import (
 var jwtTestData = []struct {
 	name            string
 	tokenString     string
-	claims          map[string]interface{}
+	claims          ClaimsMap
 	valid           bool
 	validationError *ValidationError
 }{
 	{
 		"basic",
 		"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJmb28iOiJiYXIifQ.FhkiHkoESI_cG3NPigFrxEk9Z60_oXrOT2vGm9Pn6RDgYNovYORQmmA0zs1AoAOf09ly2Nx2YAg6ABqAYga1AcMFkJljwxTT5fYphTuqpWdy4BELeSYJx5Ty2gmr8e7RonuUztrdD5WfPqLKMm1Ozp_T6zALpRmwTIW0QPnaBXaQD90FplAg46Iy1UlDKr-Eupy0i5SLch5Q-p2ZpaL_5fnTIUDlxC3pWhJTyx_71qDI-mAA_5lE_VdroOeflG56sSmDxopPEG3bFlSu1eowyBfxtu0_CuVd-M42RU75Zc4Gsj6uV77MBtbMrf4_7M_NUTSgoIF3fRqxrj0NzihIBg",
-		map[string]interface{}{"foo": "bar"},
+		ClaimsMap{"foo": "bar"},
 		true,
 		nil,
 	},
 	{
 		"basic expired",
 		"", // autogen
-		map[string]interface{}{"foo": "bar", "exp": float64(time.Now().Unix() - 100)},
+		ClaimsMap{"foo": "bar", "exp": float64(time.Now().Unix() - 100)},
 		false,
 		&ValidationError{Errors: ValidationErrorExpired},
 	},
 	{
 		"basic nbf",
 		"", // autogen
-		map[string]interface{}{"foo": "bar", "nbf": float64(time.Now().Unix() + 100)},
+		ClaimsMap{"foo": "bar", "nbf": float64(time.Now().Unix() + 100)},
 		false,
 		&ValidationError{Errors: ValidationErrorNotValidYet},
 	},
 	{
 		"expired and nbf",
 		"", // autogen
-		map[string]interface{}{"foo": "bar", "nbf": float64(time.Now().Unix() + 100), "exp": float64(time.Now().Unix() - 100)},
+		ClaimsMap{"foo": "bar", "nbf": float64(time.Now().Unix() + 100), "exp": float64(time.Now().Unix() - 100)},
 		false,
 		&ValidationError{Errors: ValidationErrorNotValidYet | ValidationErrorExpired},
 	},
 	{
 		"basic invalid",
 		"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJmb28iOiJiYXIifQ.EhkiHkoESI_cG3NPigFrxEk9Z60_oXrOT2vGm9Pn6RDgYNovYORQmmA0zs1AoAOf09ly2Nx2YAg6ABqAYga1AcMFkJljwxTT5fYphTuqpWdy4BELeSYJx5Ty2gmr8e7RonuUztrdD5WfPqLKMm1Ozp_T6zALpRmwTIW0QPnaBXaQD90FplAg46Iy1UlDKr-Eupy0i5SLch5Q-p2ZpaL_5fnTIUDlxC3pWhJTyx_71qDI-mAA_5lE_VdroOeflG56sSmDxopPEG3bFlSu1eowyBfxtu0_CuVd-M42RU75Zc4Gsj6uV77MBtbMrf4_7M_NUTSgoIF3fRqxrj0NzihIBg",
-		map[string]interface{}{"foo": "bar"},
+		ClaimsMap{"foo": "bar"},
 		false,
 		&ValidationError{Errors: ValidationErrorSignatureInvalid},
 	},
 }
 
-func makeSample(c map[string]interface{}) string {
+func makeSample(c ClaimsMap) string {
 	key, e := ioutil.ReadFile("test/sample_key")
 	if e != nil {
 		panic(e.Error())
 	}
 
-	token := New(GetSigningMethod("RS256"))
-	token.Claims = c
+	token := NewWithSigningMethod(GetSigningMethod("RS256"))
+	token.Claims = &c
 	s, e := token.SignedString(key)
 
 	if e != nil {
@@ -80,9 +80,10 @@ func TestJWT(t *testing.T) {
 		if data.tokenString == "" {
 			data.tokenString = makeSample(data.claims)
 		}
-		token, err := Parse(data.tokenString, func(t *Token) ([]byte, error) { return key, nil })
+		token := New()
+		err := token.Parse(data.tokenString, func(t *Token) ([]byte, error) { return key, nil })
 
-		if !reflect.DeepEqual(data.claims, token.Claims) {
+		if !reflect.DeepEqual(&data.claims, token.Claims) {
 			t.Errorf("[%v] Claims mismatch. Expecting: %v  Got: %v", data.name, data.claims, token.Claims)
 		}
 		if data.valid && err != nil {
@@ -119,10 +120,11 @@ func TestParseRequest(t *testing.T) {
 		}
 
 		r, _ := http.NewRequest("GET", "/", nil)
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %v", data.tokenString))
-		token, err := ParseFromRequest(r, func(t *Token) ([]byte, error) { return key, nil })
+		r.Header.Set("Authorization", fmt.Sprintf("JWT %v", data.tokenString))
+		token := New()
+		err := token.ParseFromRequest(r, func(t *Token) ([]byte, error) { return key, nil })
 
-		if !reflect.DeepEqual(data.claims, token.Claims) {
+		if !reflect.DeepEqual(&data.claims, token.Claims) {
 			t.Errorf("[%v] Claims mismatch. Expecting: %v  Got: %v", data.name, data.claims, token.Claims)
 		}
 		if data.valid && err != nil {
