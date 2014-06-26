@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -218,7 +219,7 @@ func (t *Token) Parse(tokenString string, keyFunc Keyfunc) error {
 	now := TimeFunc().Unix()
 	if exp, ok := t.Claims.Exp(); ok {
 		if now > int64(exp) {
-			vErr.err = "Token is expired"
+			vErr.err = fmt.Sprintf("Token is expired: %d > %d", now, int64(exp))
 			vErr.Errors |= ValidationErrorExpired
 		}
 	}
