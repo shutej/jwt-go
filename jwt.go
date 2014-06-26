@@ -44,26 +44,58 @@ type Token struct {
 
 type HeaderMap map[string]interface{}
 
-func (self *HeaderMap) Alg() (alg string, ok bool) {
-	alg, ok = (*self)["alg"].(string)
-	return
+func (self *HeaderMap) Alg() (string, bool) {
+	alg, ok := (*self)["alg"]
+	if !ok {
+		return "", false
+	}
+	switch retval := alg.(type) {
+	case string:
+		return retval, true
+	default:
+		return "", false
+	}
 }
 
-func (self *HeaderMap) Kid() (kid string, ok bool) {
-	kid, ok = (*self)["kid"].(string)
-	return
+func (self *HeaderMap) Kid() (string, bool) {
+	kid, ok := (*self)["kid"]
+	if !ok {
+		return "", false
+	}
+	switch retval := kid.(type) {
+	case string:
+		return retval, true
+	default:
+		return "", false
+	}
 }
 
 type ClaimsMap map[string]interface{}
 
-func (self *ClaimsMap) Exp() (exp float64, ok bool) {
-	exp, ok = (*self)["exp"].(float64)
-	return
+func (self *ClaimsMap) Exp() (float64, bool) {
+	exp, ok := (*self)["exp"]
+	if !ok {
+		return 0., false
+	}
+	switch retval := exp.(type) {
+	case float64:
+		return retval, true
+	default:
+		return 0., false
+	}
 }
 
-func (self *ClaimsMap) Nbf() (nbf float64, ok bool) {
-	nbf, ok = (*self)["nbf"].(float64)
-	return
+func (self *ClaimsMap) Nbf() (float64, bool) {
+	nbf, ok := (*self)["nbf"]
+	if !ok {
+		return 0., false
+	}
+	switch retval := nbf.(type) {
+	case float64:
+		return retval, true
+	default:
+		return 0., false
+	}
 }
 
 func NewHeaderMap(method SigningMethod) *HeaderMap {
