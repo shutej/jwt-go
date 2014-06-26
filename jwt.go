@@ -13,7 +13,9 @@ import (
 // claim (expiration time).  You can override it to use another time value.
 // This is useful for testing or if your server uses a different time zone than
 // your tokens.
-var TimeFunc = time.Now
+var TimeFunc = func() time.Time {
+	return time.Now().UTC()
+}
 
 // Parse methods use this callback function to supply the key for verification.
 // The function receives the parsed, but unverified Token.  This allows you to
