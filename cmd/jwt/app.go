@@ -115,14 +115,15 @@ func verifyToken() error {
 	}
 
 	// Parse the token.  Load the key from command line option
-	token, err := jwt.Parse(string(tokData), func(t *jwt.Token) ([]byte, error) {
+	token := jwt.New()
+	err = token.Parse(string(tokData), func(t *jwt.Token) ([]byte, error) {
 		return loadData(*flagKey)
 	})
 
 	// Print some debug data
 	if *flagDebug && token != nil {
-		fmt.Fprintf(os.Stderr, "Header:\n%v\n", token.Header)
-		fmt.Fprintf(os.Stderr, "Claims:\n%v\n", token.Claims)
+		fmt.Fprintf(os.Stderr, "Header:\n%#v\n", *token.Header.(*jwt.HeaderMap))
+		fmt.Fprintf(os.Stderr, "Claims:\n%#v\n", *token.Claims.(*jwt.ClaimsMap))
 	}
 
 	// Print an error if we can't parse for some reason
@@ -155,8 +156,8 @@ func signToken() error {
 	}
 
 	// parse the JSON of the claims
-	var claims map[string]interface{}
-	if err := json.Unmarshal(tokData, &claims); err != nil {
+	claims := &jwt.ClaimsMap{}
+	if err := json.Unmarshal(tokData, claims); err != nil {
 		return fmt.Errorf("Couldn't parse claims JSON: %v", err)
 	}
 
@@ -173,7 +174,7 @@ func signToken() error {
 	}
 
 	// create a new token
-	token := jwt.New(alg)
+	token := jwt.NewWithSigningMethod(alg)
 	token.Claims = claims
 
 	if out, err := token.SignedString(keyData); err == nil {
